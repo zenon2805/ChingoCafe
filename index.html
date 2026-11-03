@@ -12,7 +12,7 @@
 <body><div class="app">
 <aside class="side"><div class="brand"><b>☕ CHINGO CAFÉ</b><small>Panel de administración</small></div>
 <nav class="nav" id="nav">
-<button class="active" data-page="dashboard">▦ &nbsp;Resumen</button><button data-page="products">◉ &nbsp;Productos</button><button data-page="inventory">▤ &nbsp;Inventario</button><button data-page="orders">▣ &nbsp;Pedidos</button><button data-page="customers">♙ &nbsp;Clientes</button><button data-page="assistant">☏ &nbsp;Asistente WhatsApp</button><button data-page="reports">▥ &nbsp;Reportes</button><button data-page="settings">⚙ &nbsp;Configuración</button><button data-page="tests">✓ &nbsp;Pruebas</button></nav><div class="side-foot">Sistema demostrativo · USD<br>Datos guardados en este navegador</div></aside>
+<button class="active" data-page="dashboard">▦ &nbsp;Resumen</button><button data-page="products">◉ &nbsp;Productos</button><button data-page="inventory">▤ &nbsp;Inventario</button><button data-page="roasts">🔥 &nbsp;Corridas de tueste</button><button data-page="orders">▣ &nbsp;Pedidos</button><button data-page="customers">♙ &nbsp;Clientes</button><button data-page="assistant">☏ &nbsp;Asistente WhatsApp</button><button data-page="reports">▥ &nbsp;Reportes</button><button data-page="settings">⚙ &nbsp;Configuración</button><button data-page="tests">✓ &nbsp;Pruebas</button></nav><div class="side-foot">Sistema demostrativo · USD<br>Datos guardados en este navegador</div></aside>
 <main class="main"><header class="top"><strong id="topTitle">Resumen del negocio</strong><span class="pill">● MODO DEMOSTRACIÓN</span></header><div class="content" id="view"></div></main></div>
 <script>
 const KEY='chingo_cafe_pro_v1';
@@ -21,7 +21,8 @@ const seed={settings:{business:'Chingo Café',currency:'USD',phone:'',address:'E
 {id:2,name:'Café molido 500 g',type:'Molido',weight:'500 g',price:8,stock:24,emoji:'🛍️',active:true,desc:'Ideal para consumo diario.'},
 {id:3,name:'Café en grano 1 kg',type:'En grano',weight:'1 kg',price:15,stock:16,emoji:'🫘',active:true,desc:'Grano seleccionado de El Salvador.'}],
 customers:[{id:1,name:'Cliente de prueba',phone:'7000-0000',email:'cliente@ejemplo.com',created:new Date().toISOString()}],
-orders:[{id:1001,customer:'Cliente de prueba',phone:'7000-0000',items:[{name:'Café molido 250 g',qty:2,price:4.5}],total:9,status:'Pendiente',date:new Date().toISOString(),channel:'Demostración'}],nextOrder:1002};
+orders:[{id:1001,customer:'Cliente de prueba',phone:'7000-0000',items:[{name:'Café molido 250 g',qty:2,price:4.5}],total:9,status:'Pendiente',date:new Date().toISOString(),channel:'Demostración'}],nextOrder:1002,roasts:[]};
+if(!Array.isArray(db.roasts))db.roasts=[];
 let db=load();let page='dashboard';let cart=[];
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||structuredClone(seed)}catch{return JSON.parse(JSON.stringify(seed))}}
 function save(){localStorage.setItem(KEY,JSON.stringify(db))}
@@ -32,7 +33,54 @@ function title(t){document.getElementById('topTitle').textContent=t}
 function go(p){page=p;document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));render()}
 document.getElementById('nav').addEventListener('click',e=>{let b=e.target.closest('button[data-page]');if(b)go(b.dataset.page)});
 function head(h,sub,action=''){return '<div class="page-head"><div><h1>'+h+'</h1><p>'+sub+'</p></div>'+action+'</div>'}
-function render(){const v=document.getElementById('view');({dashboard:dashboard,products:products,inventory:inventory,orders:orders,customers:customers,assistant:assistant,reports:reports,settings:settings,tests:tests}[page]||dashboard)(v)}
+function render(){const v=document.getElementById('view');({dashboard:dashboard,products:products,inventory:inventory,roasts:roasts,orders:orders,customers:customers,assistant:assistant,reports:reports,settings:settings,tests:tests}[page]||dashboard)(v)}
+
+function roasts(v){
+ title('Corridas de tueste');
+ let kgGreen=db.roasts.reduce((a,r)=>a+Number(r.greenKg||0),0),kgRoasted=db.roasts.reduce((a,r)=>a+Number(r.roastedKg||0),0);
+ v.innerHTML=head('Corridas de producción y tueste','Registra lotes, parámetros de tostado, rendimiento y control de calidad','<button class="btn alt" onclick="exportRoasts()">Exportar corridas CSV</button>')+
+ '<div class="cards"><div class="card metric"><label>Corridas registradas</label><strong>'+db.roasts.length+'</strong><small>Historial de producción</small></div><div class="card metric"><label>Café verde procesado</label><strong>'+kgGreen.toFixed(2)+' kg</strong><small>Peso total de entrada</small></div><div class="card metric"><label>Café tostado obtenido</label><strong>'+kgRoasted.toFixed(2)+' kg</strong><small>Peso total de salida</small></div><div class="card metric"><label>Merma acumulada</label><strong>'+(kgGreen?((kgGreen-kgRoasted)/kgGreen*100).toFixed(2):'0.00')+'%</strong><small>Pérdida de peso por tueste</small></div></div>'+
+ '<div class="panel"><h3>Registrar nueva corrida</h3><form class="formgrid" onsubmit="saveRoast(event)">'+
+ '<div class="field"><label>Identificador del lote / corrida</label><input name="code" placeholder="Ej. CH-2026-001" required></div>'+
+ '<div class="field"><label>Fecha de producción</label><input name="date" type="date" required value="'+new Date().toISOString().slice(0,10)+'"></div>'+
+ '<div class="field"><label>Origen / finca / proveedor</label><input name="origin" placeholder="Ej. Volcán El Chingo, Santa Ana" required></div>'+
+ '<div class="field"><label>Variedad / proceso</label><input name="variety" placeholder="Ej. Bourbon · Lavado"></div>'+
+ '<div class="field"><label>Peso de café verde (kg)</label><input name="greenKg" type="number" min=".01" step=".01" required placeholder="10.00"></div>'+
+ '<div class="field"><label>Peso de café tostado (kg)</label><input name="roastedKg" type="number" min=".01" step=".01" required placeholder="8.50"></div>'+
+ '<div class="field"><label>Perfil de tueste</label><select name="profile"><option>Medio</option><option>Claro</option><option>Medio-claro</option><option>Medio-oscuro</option><option>Oscuro</option></select></div>'+
+ '<div class="field"><label>Tiempo total de tueste (minutos)</label><input name="minutes" type="number" min="1" step="1" required placeholder="12"></div>'+
+ '<div class="field"><label>Temperatura de carga (°C)</label><input name="chargeTemp" type="number" step=".1" placeholder="190"></div>'+
+ '<div class="field"><label>Temperatura final (°C)</label><input name="endTemp" type="number" step=".1" placeholder="205"></div>'+
+ '<div class="field"><label>Temperatura máxima registrada (°C)</label><input name="maxTemp" type="number" step=".1" placeholder="210"></div>'+
+ '<div class="field"><label>Responsable / tostador</label><input name="operator" placeholder="Nombre del responsable"></div>'+
+ '<div class="field"><label>Evaluación sensorial (1–5)</label><select name="quality"><option value="5">5 · Excelente</option><option value="4" selected>4 · Muy bueno</option><option value="3">3 · Bueno</option><option value="2">2 · Regular</option><option value="1">1 · Deficiente</option></select></div>'+
+ '<div class="field"><label>Estado</label><select name="status"><option>Finalizada</option><option>En proceso</option><option>En revisión</option><option>Descartada</option></select></div>'+
+ '<div class="field" style="grid-column:1/-1"><label>Notas de proceso, aroma, sabor y observaciones</label><textarea name="notes" placeholder="Desarrollo, primer crack, color, aroma, defectos, ajustes para la siguiente corrida..."></textarea></div>'+
+ '<div class="actions" style="grid-column:1/-1"><button class="btn">Guardar corrida</button><button type="reset" class="btn alt">Limpiar formulario</button></div></form></div>'+
+ '<div class="panel" style="margin-top:16px"><h3>Historial de corridas</h3>'+roastTable(db.roasts.slice().sort((a,b)=>b.id-a.id))+'</div>'+
+ '<p class="footnote">Merma (%) = ((peso verde − peso tostado) ÷ peso verde) × 100. Rendimiento (%) = (peso tostado ÷ peso verde) × 100. Los registros se almacenan localmente en este navegador.</p>';
+}
+function saveRoast(e){
+ e.preventDefault();let f=Object.fromEntries(new FormData(e.target));let green=Number(f.greenKg),roasted=Number(f.roastedKg);
+ if(!Number.isFinite(green)||!Number.isFinite(roasted)||green<=0||roasted<=0||roasted>green)return alert('Verifica los pesos: ambos deben ser positivos y el peso tostado no puede superar el peso verde.');
+ if(db.roasts.some(r=>r.code.toLowerCase()===f.code.trim().toLowerCase()))return alert('Ya existe una corrida con ese identificador.');
+ let r={...f,id:Math.max(0,...db.roasts.map(x=>x.id||0))+1,code:f.code.trim(),greenKg:green,roastedKg:roasted,minutes:Number(f.minutes),chargeTemp:f.chargeTemp===''?null:Number(f.chargeTemp),endTemp:f.endTemp===''?null:Number(f.endTemp),maxTemp:f.maxTemp===''?null:Number(f.maxTemp),quality:Number(f.quality),lossPct:(green-roasted)/green*100,yieldPct:roasted/green*100,created:new Date().toISOString()};
+ db.roasts.push(r);save();render();alert('Corrida '+r.code+' registrada correctamente.');
+}
+function roastTable(list){
+ if(!list.length)return '<div class="empty">Todavía no hay corridas registradas. Completa el formulario para iniciar el historial.</div>';
+ return '<div class="table-wrap"><table><thead><tr><th>Código / fecha</th><th>Origen</th><th>Perfil</th><th>Entrada</th><th>Salida</th><th>Merma</th><th>Tiempo</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>'+list.map(r=>'<tr><td><b>'+esc(r.code)+'</b><br><span class="muted">'+esc(r.date)+'</span></td><td>'+esc(r.origin)+'</td><td>'+esc(r.profile)+'</td><td>'+Number(r.greenKg).toFixed(2)+' kg</td><td>'+Number(r.roastedKg).toFixed(2)+' kg</td><td><b>'+Number(r.lossPct).toFixed(2)+'%</b></td><td>'+esc(r.minutes)+' min</td><td><span class="status '+(r.status==='Descartada'?'cancel':r.status==='En proceso'?'pending':'')+'">'+esc(r.status)+'</span></td><td><button class="btn alt small" onclick="viewRoast('+r.id+')">Detalle</button> <button class="btn danger small" onclick="deleteRoast('+r.id+')">Eliminar</button></td></tr>').join('')+'</tbody></table></div><div id="roastDetail"></div>';
+}
+function viewRoast(id){
+ let r=db.roasts.find(x=>x.id===id);if(!r)return;
+ document.getElementById('roastDetail').innerHTML='<div class="panel" style="margin-top:14px"><h3>Detalle de corrida '+esc(r.code)+'</h3><div class="formgrid"><p><b>Fecha:</b> '+esc(r.date)+'</p><p><b>Origen:</b> '+esc(r.origin)+'</p><p><b>Variedad / proceso:</b> '+esc(r.variety||'No especificado')+'</p><p><b>Responsable:</b> '+esc(r.operator||'No especificado')+'</p><p><b>Temperatura de carga:</b> '+(r.chargeTemp??'—')+' °C</p><p><b>Temperatura final:</b> '+(r.endTemp??'—')+' °C</p><p><b>Temperatura máxima:</b> '+(r.maxTemp??'—')+' °C</p><p><b>Calidad sensorial:</b> '+r.quality+'/5</p><p><b>Rendimiento:</b> '+r.yieldPct.toFixed(2)+'%</p><p><b>Merma:</b> '+r.lossPct.toFixed(2)+'%</p></div><p><b>Observaciones:</b> '+esc(r.notes||'Sin observaciones')+'</p></div>';
+}
+function deleteRoast(id){if(confirm('¿Eliminar esta corrida del historial?')){db.roasts=db.roasts.filter(r=>r.id!==id);save();render()}}
+function exportRoasts(){
+ let rows=[['Código','Fecha','Origen','Variedad','Perfil','Café verde kg','Café tostado kg','Merma %','Rendimiento %','Minutos','Temperatura carga','Temperatura final','Temperatura máxima','Responsable','Calidad','Estado','Observaciones'],...db.roasts.map(r=>[r.code,r.date,r.origin,r.variety,r.profile,r.greenKg,r.roastedKg,r.lossPct.toFixed(2),r.yieldPct.toFixed(2),r.minutes,r.chargeTemp,r.endTemp,r.maxTemp,r.operator,r.quality,r.status,r.notes])];
+ let csv=rows.map(row=>row.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(',')).join('\\n');let a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\\ufeff'+csv],{type:'text/csv;charset=utf-8'}));a.download='chingo-cafe-corridas-tueste.csv';a.click();URL.revokeObjectURL(a.href);
+}
+
 function dashboard(v){title('Resumen del negocio');let sales=db.orders.filter(o=>o.status!=='Cancelado').reduce((s,o)=>s+o.total,0),pending=db.orders.filter(o=>o.status==='Pendiente').length;v.innerHTML=head('Resumen del negocio','Indicadores generales de Chingo Café')+
 '<div class="cards"><div class="card metric"><label>Ventas registradas</label><strong>'+money(sales)+'</strong><small>Pedidos no cancelados</small></div><div class="card metric"><label>Pedidos</label><strong>'+db.orders.length+'</strong><small>'+pending+' pendientes</small></div><div class="card metric"><label>Clientes</label><strong>'+db.customers.length+'</strong><small>Registrados</small></div><div class="card metric"><label>Productos activos</label><strong>'+db.products.filter(p=>p.active).length+'</strong><small>'+db.products.reduce((s,p)=>s+p.stock,0)+' unidades en inventario</small></div></div>'+
 '<div class="grid2"><section class="panel"><h3>Pedidos recientes</h3>'+orderTable(db.orders.slice().sort((a,b)=>b.id-a.id).slice(0,5))+'</section><section class="panel"><h3>Inventario por producto</h3>'+db.products.map(p=>'<p style="display:flex;justify-content:space-between"><span>'+p.emoji+' '+esc(p.name)+'</span><b>'+p.stock+' uds.</b></p><div class="bar"><i style="width:'+Math.min(100,p.stock/50*100)+'%"></i></div>').join('')+'</section></div><p class="footnote">Los importes corresponden a datos de demostración y registros guardados localmente.</p>'}
